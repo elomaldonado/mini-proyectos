@@ -71,8 +71,8 @@ object HeatmapRenderer {
         return ramp[minOf(level, 4) - 1]
     }
 
-    fun firstMonday(): LocalDate =
-        Store.today().with(DayOfWeek.MONDAY).minusWeeks((WEEKS - 1).toLong())
+    fun firstMonday(weeks: Int = WEEKS): LocalDate =
+        Store.today().with(DayOfWeek.MONDAY).minusWeeks((weeks - 1).toLong())
 
     fun isNight(c: Context): Boolean =
         (c.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
@@ -90,8 +90,9 @@ object HeatmapRenderer {
         outline: Int,
         night: Boolean,
         showNoteDots: Boolean = true,
+        weeks: Int = WEEKS,
     ): Float {
-        val start = firstMonday()
+        val start = firstMonday(weeks)
         val today = Store.today()
         val gap = cell * 0.18f
         val radius = cell * 0.2f
@@ -101,9 +102,9 @@ object HeatmapRenderer {
             strokeWidth = maxOf(1f, gap * 0.8f)
             color = outline
         }
-        if (monthLabelH > 0f) drawMonthLabels(canvas, start, x0, y0, cell, monthLabelH, textPaint)
+        if (monthLabelH > 0f) drawMonthLabels(canvas, start, x0, y0, cell, monthLabelH, textPaint, weeks)
 
-        for (col in 0 until WEEKS) {
+        for (col in 0 until weeks) {
             val monday = start.plusWeeks(col.toLong())
             for (row in 0 until 7) {
                 val date = monday.plusDays(row.toLong())
@@ -141,18 +142,19 @@ object HeatmapRenderer {
         cell: Float,
         monthLabelH: Float,
         textPaint: Paint,
+        weeks: Int = WEEKS,
     ) {
         val es = Locale("es")
         val labels = mutableListOf<Pair<Float, String>>() // x, texto
         var lastMonth = -1
-        for (col in 0 until WEEKS) {
+        for (col in 0 until weeks) {
             val monday = start.plusWeeks(col.toLong())
             if (monday.monthValue != lastMonth) {
                 lastMonth = monday.monthValue
                 val name = monday.month.getDisplayName(TextStyle.SHORT, es).trimEnd('.')
                 val x = x0 + col * cell
                 // No dibujar si no cabe antes del borde derecho.
-                if (x + textPaint.measureText(name) > x0 + WEEKS * cell) continue
+                if (x + textPaint.measureText(name) > x0 + weeks * cell) continue
                 val prev = labels.lastOrNull()
                 if (prev != null && prev.first + textPaint.measureText(prev.second) + cell * 0.5f > x) {
                     labels.removeAt(labels.size - 1) // el anterior era un resto del mes pasado: se quita
@@ -163,40 +165,49 @@ object HeatmapRenderer {
         for ((x, name) in labels) canvas.drawText(name, x, y0 + monthLabelH * 0.75f, textPaint)
     }
 
-    /** Imagen con los tres mapas, para la tarjeta de la pantalla de bloqueo. */
+    /**
+     * Imagen con los tres mapas para la tarjeta de la pantalla de bloqueo.
+     * Android limita la altura de la tarjeta abierta, así que se aprovecha el ancho:
+     * nombre a la izquierda de cada mapa, una sola fila de meses arriba y 28 semanas.
+     * La imagen tiene la proporción del espacio disponible para que se vea grande y centrada.
+     */
     fun bitmapForNotification(c: Context, days: Map<LocalDate, Day>): Bitmap {
         val night = isNight(c)
-        val density = c.resources.displayMetrics.density
-        val width = (300 * density).toInt()
-        val cell = width / WEEKS.toFloat()
-        val labelH = 15 * density
-        val monthH = 12 * density
-        val spacing = 6 * density
-        val blockH = labelH + monthH + cell * 7
+        val d = c.resources.displayMetrics.density
+        val weeks = 28
+        val width = 294 * d
+        val labelW = 54 * d
+        val cell = (width - labelW) / weeks
+        val monthH = 12 * d
+        val spacing = 7 * d
         val tracks = Track.values()
-        val height = (blockH * tracks.size + spacing * (tracks.size - 1)).toInt() + 2
+        val height = monthH + tracks.size * 7 * cell + (tracks.size - 1) * spacing
 
-        val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val bmp = Bitmap.createBitmap(width.toInt(), height.toInt() + 2, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         val muted = if (night) 0xFFB0B8C0.toInt() else 0xFF5F6670.toInt()
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = 12 * density
-            color = muted
+            textSize = 12 * d
+            color = if (night) 0xFFE6E6E6.toInt() else 0xFF1F2328.toInt()
             typeface = Fonts.medium(c)
         }
         val monthPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = 9 * density
+            textSize = 9.5f * d
             color = muted
             typeface = Fonts.regular(c)
         }
         val outline = if (night) 0xFFFFFFFF.toInt() else 0xFF1F2328.toInt()
 
-        var y = 0f
+        // Fila de meses, una sola vez, alineada con las grillas.
+        drawMonthLabels(canvas, firstMonday(weeks), labelW, 0f, cell, monthH, monthPaint, weeks)
+
+        var y = monthH
         for (t in tracks) {
-            canvas.drawText(t.label, 0f, y + labelH * 0.8f, titlePaint)
-            y += labelH
-            y += draw(canvas, days, t, 0f, y, cell, monthH, monthPaint, outline, night, showNoteDots = false)
-            y += spacing
+            val gridH = 7 * cell
+            // Nombre centrado verticalmente a la izquierda del mapa.
+            canvas.drawText(t.label, 0f, y + gridH / 2 + titlePaint.textSize * 0.35f, titlePaint)
+            draw(canvas, days, t, labelW, y, cell, 0f, monthPaint, outline, night, showNoteDots = false, weeks = weeks)
+            y += gridH + spacing
         }
         return bmp
     }
