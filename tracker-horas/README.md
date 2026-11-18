@@ -7,8 +7,7 @@ Antes lo llevaba en Excel; ahora todo aparece en la pantalla de bloqueo, encima 
 
 - **Cronómetro** por categoría (Trabajo / 中文): ▶ empezar, ⏸ parar. Si pasa la medianoche, divide el tiempo entre los dos días.
 - **Sumar a mano** bloques de +15 / +30 / −15 minutos.
-- **Píldora en la Now Bar (One UI 8 / Android 16):** debajo de la hora, siempre visible. Muestra el cronómetro de lo que estoy haciendo o "Hoy: Trabajo 2h · 中文 0h". Es un *Live Update* (`requestPromotedOngoing` + `shortCriticalText`) mantenido por un servicio en primer plano que vuelve a arrancar al prender el teléfono.
-- **Pantalla de bloqueo:** una tarjeta fija muestra el dinero de hoy y del mes y los tres mapas de calor; arriba, el cronómetro con lo que estoy haciendo (Trabajo o 中文). Botones ▶/⏸ para el cronómetro y **+ Dinero** para anotar un monto sin abrir la app. En Android 16 (One UI 8) el cronómetro pide mostrarse como *Live Update* (Now Bar).
+- **Dashboard en la pantalla de bloqueo:** una sola tarjeta, encima del fondo de pantalla, con lo que estoy haciendo y su cronómetro corriendo en grande (o el resumen de hoy), el dinero y los tres mapas. La mantiene un servicio en primer plano que vuelve a arrancar al prender el teléfono.
 - **Ejercicio:** al final del día marco *8k pasos*, *20 min calistenia* y *correr / saltar soga*. Niveles: 8k · 8k + calistenia · 8k + correr/soga · todo.
 - **Dinero ganado** en soles (S/): se suma durante el día; muestra hoy, el mes y los últimos 30 días.
 - **Mapas de calor** de los últimos 6 meses, estilo GitHub. Trabajo en azules (1h · 2–3h · 3–5h · 6h+), 中文 en verdes (1h · 2h · 3h · 3h+) y ejercicio en rojos suaves. Se puede tocar cualquier día para editarlo.

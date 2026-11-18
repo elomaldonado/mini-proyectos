@@ -4,7 +4,55 @@
     android:layout_height="wrap_content"
     android:orientation="vertical">
 
+    <!-- Lo que está corriendo y el cronómetro en grande -->
     <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/n_state"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAppearance="@android:style/TextAppearance.Material.Notification"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/n_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textAppearance="@android:style/TextAppearance.Material.Notification.Title"
+                android:textSize="16sp" />
+        </LinearLayout>
+
+        <Chronometer
+            android:id="@+id/n_chrono"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:textAppearance="@android:style/TextAppearance.Material.Notification.Title"
+            android:textSize="28sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/n_summary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:textAppearance="@android:style/TextAppearance.Material.Notification"
+        android:textSize="12sp" />
+
+    <LinearLayout
+        android:layout_marginTop="8dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal">

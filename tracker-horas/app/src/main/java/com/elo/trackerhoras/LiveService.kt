@@ -8,8 +8,8 @@ import android.os.Build
 import android.os.IBinder
 
 /**
- * Servicio en primer plano que mantiene viva la "píldora" de Progreso
- * (Live Update / Now Bar) en la pantalla de bloqueo, debajo de la hora.
+ * Servicio en primer plano que mantiene siempre el dashboard de Progreso
+ * (cronómetro + dinero + mapas) en la pantalla de bloqueo.
  * Se arranca al abrir la app, al prender el teléfono y al actualizar la app.
  */
 class LiveService : Service() {
@@ -27,11 +27,11 @@ class LiveService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val n = Notifier.buildLive(this)
+        val n = Notifier.buildCard(this)
         if (Build.VERSION.SDK_INT >= 34) {
-            startForeground(Notifier.LIVE_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            startForeground(Notifier.ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } else {
-            startForeground(Notifier.LIVE_ID, n)
+            startForeground(Notifier.ID, n)
         }
         Notifier.update(this)
         return START_STICKY
