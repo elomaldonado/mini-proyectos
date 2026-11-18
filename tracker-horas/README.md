@@ -12,7 +12,7 @@ Antes lo llevaba en Excel; ahora todo aparece en la pantalla de bloqueo, encima 
 - **Mapas de calor** de los últimos 6 meses, estilo GitHub. Trabajo en azules (1h · 2–3h · 3–5h · 6h+) y 中文 en verdes (1h · 2h · 3h · 3h+). Se puede tocar cualquier día para editarlo.
 - **Nota del día** ("Pingtung", "examen", "drained"…), marcada con un puntito en el mapa.
 - **Estadísticas:** horas de los últimos 7 y 30 días y racha de días seguidos.
-- **Exportar / importar CSV** (`fecha,trabajo_horas,mandarin_horas,dinero_soles,nota`), compatible con Excel.
+- **Exportar / importar CSV** (también se puede importar con "Compartir → Progreso" desde WhatsApp) (`fecha,trabajo_horas,mandarin_horas,dinero_soles,nota`), compatible con Excel.
 
 Todo se guarda en el teléfono. Sin cuentas, sin internet, sin dependencias externas.
 

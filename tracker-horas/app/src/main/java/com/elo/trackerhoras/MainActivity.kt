@@ -9,6 +9,7 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -122,6 +123,39 @@ class MainActivity : Activity() {
         val scroll = ScrollView(this)
         scroll.addView(root)
         setContentView(scroll)
+
+        handleSharedFile(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleSharedFile(intent)
+    }
+
+    /** CSV compartido desde WhatsApp, Drive, etc. ("Compartir → Progreso" o "Abrir con → Progreso"). */
+    private fun handleSharedFile(i: Intent?) {
+        if (i == null) return
+        val uri: Uri? = when (i.action) {
+            Intent.ACTION_VIEW -> i.data
+            Intent.ACTION_SEND ->
+                if (Build.VERSION.SDK_INT >= 33) i.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                else @Suppress("DEPRECATION") (i.getParcelableExtra<Uri>(Intent.EXTRA_STREAM))
+            else -> null
+        }
+        val sharedText = if (i.action == Intent.ACTION_SEND && uri == null) i.getStringExtra(Intent.EXTRA_TEXT) else null
+        if (uri == null && sharedText.isNullOrBlank()) return
+        i.action = null // para que no se vuelva a importar al girar la pantalla
+        try {
+            val text = sharedText ?: contentResolver.openInputStream(uri!!)?.use {
+                it.readBytes().toString(Charsets.UTF_8)
+            } ?: return
+            val n = Csv.import(this, text)
+            toast(if (n > 0) "$n días importados" else "No encontré días para importar en ese archivo")
+            refreshAll()
+        } catch (e: Exception) {
+            toast("No pude leer el archivo: ${e.message}")
+        }
     }
 
     override fun onResume() {
