@@ -169,6 +169,7 @@ class MainActivity : Activity() {
         refreshAll()
         handler.post(tick)
         ActionReceiver.scheduleMidnight(this)
+        LiveService.start(this)
     }
 
     override fun onPause() {

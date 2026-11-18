@@ -12,7 +12,13 @@ import android.os.Bundle
 import android.widget.RemoteViews
 
 /**
- * La tarjeta fija de la pantalla de bloqueo, encima de tu fondo de pantalla:
+ * Dos notificaciones:
+ *
+ * 1) La "píldora" (LIVE_ID): Live Update de Android 16 que One UI 8 muestra en la Now Bar,
+ *    debajo de la hora. Solo texto corto: el cronómetro si hay algo corriendo, o
+ *    "Hoy: Trabajo 2h · 中文 0h". La mantiene viva LiveService (servicio en primer plano).
+ *
+ * 2) La tarjeta con los mapas (ID), igual que antes:, encima de tu fondo de pantalla:
  *  - arriba, el cronómetro con lo que estás haciendo ("Progreso · 中文 · 0:42:10")
  *  - dinero ganado hoy y en el mes (S/)
  *  - los tres mapas de calor: Trabajo, 中文 y Ejercicio
@@ -21,6 +27,8 @@ import android.widget.RemoteViews
 object Notifier {
     private const val CHANNEL = "progreso"
     private const val ID = 1
+    const val LIVE_ID = 2
+    private const val LIVE_CHANNEL = "progreso_live"
     const val MONEY_KEY = "monto"
 
     private fun ensureChannel(c: Context): NotificationManager {
@@ -32,7 +40,98 @@ object Notifier {
             ch.setShowBadge(false)
             nm.createNotificationChannel(ch)
         }
+        if (nm.getNotificationChannel(LIVE_CHANNEL) == null) {
+            // Importancia normal (las de importancia mínima no se pueden promover), pero sin sonido.
+            val ch = NotificationChannel(LIVE_CHANNEL, "Píldora en la pantalla de bloqueo", NotificationManager.IMPORTANCE_DEFAULT)
+            ch.description = "Cronómetro u horas de hoy en la Now Bar (sin sonido)"
+            ch.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            ch.setSound(null, null)
+            ch.enableVibration(false)
+            ch.enableLights(false)
+            ch.setShowBadge(false)
+            nm.createNotificationChannel(ch)
+        }
         return nm
+    }
+
+    private fun short(secs: Long): String {
+        val h = secs / 3600
+        val m = (secs % 3600) / 60
+        return when {
+            h > 0 && m > 0 -> "${h}h${String.format("%02d", m)}"
+            h > 0 -> "${h}h"
+            else -> "${m}m"
+        }
+    }
+
+    /**
+     * Android 16: setRequestPromotedOngoing(true) y setShortCriticalText(...).
+     * La app compila con el SDK 35, así que se llaman por reflexión si el teléfono los tiene,
+     * y además se deja el extra estándar (lo mismo que guarda setRequestPromotedOngoing).
+     */
+    private fun promote(b: Notification.Builder, shortText: String?) {
+        b.addExtras(Bundle().apply { putBoolean("android.requestPromotedOngoing", true) })
+        try {
+            Notification.Builder::class.java
+                .getMethod("setRequestPromotedOngoing", Boolean::class.javaPrimitiveType)
+                .invoke(b, true)
+        } catch (_: Exception) {
+        }
+        if (shortText != null) {
+            try {
+                Notification.Builder::class.java
+                    .getMethod("setShortCriticalText", String::class.java)
+                    .invoke(b, shortText)
+            } catch (_: Exception) {
+                b.addExtras(Bundle().apply { putString("android.shortCriticalText", shortText) })
+            }
+        }
+    }
+
+    /** La píldora: texto corto, sin vistas personalizadas (requisito para que Android la promueva). */
+    fun buildLive(c: Context): Notification {
+        ensureChannel(c)
+        val run = Store.running(c)
+        val work = Store.todaySecs(c, Cat.WORK)
+        val zh = Store.todaySecs(c, Cat.ZH)
+        val today = "Hoy: Trabajo ${short(work)} · 中文 ${short(zh)}"
+
+        val open = PendingIntent.getActivity(
+            c, 0, Intent(c, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
+        )
+        val b = Notification.Builder(c, LIVE_CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setColorized(false)
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
+            .setContentIntent(open)
+            .setDeleteIntent(broadcast(c, ActionReceiver.REPOST))
+
+        if (run != null) {
+            val total = Store.todaySecs(c, run)
+            b.setContentTitle(run.label)
+                .setContentText(today)
+                .setCategory(Notification.CATEGORY_STOPWATCH)
+                .setShowWhen(true)
+                .setUsesChronometer(true)
+                .setWhen(System.currentTimeMillis() - total * 1000)
+            promote(b, null) // sin texto corto: la píldora muestra el cronómetro
+        } else {
+            b.setContentTitle("Progreso")
+                .setContentText(today)
+                .setCategory(Notification.CATEGORY_STATUS)
+                .setShowWhen(false)
+            promote(b, today)
+        }
+
+        val icon = Icon.createWithResource(c, R.drawable.ic_stat)
+        for (cat in Cat.values()) {
+            val label = if (run == cat) "⏸ ${cat.label}" else "▶ ${cat.label}"
+            val action = if (cat == Cat.WORK) ActionReceiver.TOGGLE_WORK else ActionReceiver.TOGGLE_ZH
+            b.addAction(Notification.Action.Builder(icon, label, broadcast(c, action)).build())
+        }
+        return b.build()
     }
 
     fun broadcast(c: Context, action: String, mutable: Boolean = false): PendingIntent =
@@ -92,8 +191,6 @@ object Notifier {
                 .setUsesChronometer(true)
                 .setWhen(System.currentTimeMillis() - runningTotal * 1000)
                 .setCategory(Notification.CATEGORY_STOPWATCH)
-            // Android 16 (One UI 8): pide mostrarse como "Live Update" (Now Bar).
-            b.addExtras(Bundle().apply { putBoolean("android.requestPromotedOngoing", true) })
         }
 
         val icon = Icon.createWithResource(c, R.drawable.ic_stat)
@@ -111,6 +208,7 @@ object Notifier {
 
         try {
             nm.notify(ID, b.build())
+            nm.notify(LIVE_ID, buildLive(c))
         } catch (_: SecurityException) {
             // Sin permiso de notificaciones: la app sigue funcionando, solo no se ve en la pantalla de bloqueo.
         }

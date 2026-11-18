@@ -35,6 +35,9 @@ class ActionReceiver : BroadcastReceiver() {
                 if (amount != null) Store.addMoney(c, Store.today(), amount)
             }
         }
+        if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+            LiveService.start(c) // vuelve a poner la píldora al prender el teléfono
+        }
         Notifier.update(c)
         scheduleMidnight(c)
     }

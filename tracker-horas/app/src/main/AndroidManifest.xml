@@ -3,6 +3,8 @@
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- Android 16: permite que el cronómetro aparezca como "Live Update" (Now Bar) -->
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
 
@@ -36,6 +38,15 @@
                 <data android:mimeType="application/octet-stream" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".LiveService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Muestra en la pantalla de bloqueo el progreso diario que el usuario registra (horas de trabajo y de estudio)" />
+        </service>
 
         <receiver
             android:name=".ActionReceiver"

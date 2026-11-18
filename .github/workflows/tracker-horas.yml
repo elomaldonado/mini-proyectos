@@ -30,7 +30,13 @@ jobs:
           gradle-version: "8.11.1"
 
       - name: Compilar APK
-        run: gradle assembleRelease --no-daemon --stacktrace
+        run: |
+          set -o pipefail
+          gradle assembleRelease --no-daemon --stacktrace 2>&1 | tee build.log || {
+            # Publica los errores como anotaciones (se ven sin iniciar sesión)
+            grep -E "^e: |error:|What went wrong" -A2 build.log | head -40 | while IFS= read -r l; do echo "::error::$l"; done
+            exit 1
+          }
 
       - name: Preparar archivo
         run: cp app/build/outputs/apk/release/app-release.apk ../tracker-horas.apk

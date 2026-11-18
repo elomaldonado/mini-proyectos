@@ -101,18 +101,10 @@ object HeatmapRenderer {
             strokeWidth = maxOf(1f, gap * 0.8f)
             color = outline
         }
-        val es = Locale("es")
-        var lastMonth = -1
+        if (monthLabelH > 0f) drawMonthLabels(canvas, start, x0, y0, cell, monthLabelH, textPaint)
 
         for (col in 0 until WEEKS) {
             val monday = start.plusWeeks(col.toLong())
-            if (monthLabelH > 0f && monday.monthValue != lastMonth) {
-                if (col < WEEKS - 1) {
-                    val name = monday.month.getDisplayName(TextStyle.SHORT, es).trimEnd('.')
-                    canvas.drawText(name, x0 + col * cell, y0 + monthLabelH * 0.75f, textPaint)
-                }
-                lastMonth = monday.monthValue
-            }
             for (row in 0 until 7) {
                 val date = monday.plusDays(row.toLong())
                 if (date.isAfter(today)) continue
@@ -134,6 +126,41 @@ object HeatmapRenderer {
             }
         }
         return monthLabelH + cell * 7
+    }
+
+    /**
+     * Nombres de los meses sobre la columna donde empieza cada uno. Si dos quedan
+     * demasiado juntos (p. ej. "may" en la primera columna y "jun" en la segunda),
+     * se queda solo el mes que empieza de verdad ahí, para que no se lea "majun".
+     */
+    private fun drawMonthLabels(
+        canvas: Canvas,
+        start: LocalDate,
+        x0: Float,
+        y0: Float,
+        cell: Float,
+        monthLabelH: Float,
+        textPaint: Paint,
+    ) {
+        val es = Locale("es")
+        val labels = mutableListOf<Pair<Float, String>>() // x, texto
+        var lastMonth = -1
+        for (col in 0 until WEEKS) {
+            val monday = start.plusWeeks(col.toLong())
+            if (monday.monthValue != lastMonth) {
+                lastMonth = monday.monthValue
+                val name = monday.month.getDisplayName(TextStyle.SHORT, es).trimEnd('.')
+                val x = x0 + col * cell
+                // No dibujar si no cabe antes del borde derecho.
+                if (x + textPaint.measureText(name) > x0 + WEEKS * cell) continue
+                val prev = labels.lastOrNull()
+                if (prev != null && prev.first + textPaint.measureText(prev.second) + cell * 0.5f > x) {
+                    labels.removeAt(labels.size - 1) // el anterior era un resto del mes pasado: se quita
+                }
+                labels.add(x to name)
+            }
+        }
+        for ((x, name) in labels) canvas.drawText(name, x, y0 + monthLabelH * 0.75f, textPaint)
     }
 
     /** Imagen con los tres mapas, para la tarjeta de la pantalla de bloqueo. */
