@@ -17,7 +17,7 @@ import android.widget.RemoteViews
  *
  *  - Arriba, lo que estás haciendo y el cronómetro corriendo en grande ("中文  0:42:10").
  *    Si no hay nada corriendo: "Hoy: Trabajo 2h · 中文 1h30".
- *  - Dinero de hoy y del mes (S/).
+ *  - Dinero de hoy, del año y total (S/).
  *  - Los tres mapas de calor: Trabajo, 中文 y Ejercicio.
  *  - Botones ▶/⏸ Trabajo, ▶/⏸ 中文 y "+ Dinero".
  *
@@ -76,7 +76,8 @@ object Notifier {
         val work = Store.todaySecs(c, Cat.WORK)
         val zh = Store.todaySecs(c, Cat.ZH)
         val moneyToday = Store.moneyToday(c)
-        val moneyMonth = Store.moneyThisMonth(days)
+        val moneyYear = Store.moneyThisYear(days)
+        val moneyTotal = Store.moneyTotal(days)
         val todayLine = "Hoy: Trabajo ${short(work)} · 中文 ${short(zh)}"
 
         // Base del cronómetro: el total de hoy de lo que está corriendo.
@@ -112,7 +113,8 @@ object Notifier {
             big.setViewVisibility(R.id.n_summary, View.GONE)
         }
         big.setTextViewText(R.id.n_money_today, fmtSoles(moneyToday))
-        big.setTextViewText(R.id.n_money_month, fmtSoles(moneyMonth))
+        big.setTextViewText(R.id.n_money_year, fmtSoles(moneyYear))
+        big.setTextViewText(R.id.n_money_total, fmtSoles(moneyTotal))
         big.setImageViewBitmap(R.id.n_heatmap, HeatmapRenderer.bitmapForNotification(c, days))
 
         val open = PendingIntent.getActivity(
@@ -122,7 +124,7 @@ object Notifier {
         val b = Notification.Builder(c, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat)
             .setContentTitle(if (run != null) "${run.label} en curso" else todayLine)
-            .setContentText("Dinero hoy ${fmtSoles(moneyToday)} · Este mes ${fmtSoles(moneyMonth)}")
+            .setContentText("Dinero hoy ${fmtSoles(moneyToday)} · Año ${fmtSoles(moneyYear)} · Total ${fmtSoles(moneyTotal)}")
             .setStyle(Notification.DecoratedCustomViewStyle())
             .setCustomContentView(small)
             .setCustomBigContentView(big)

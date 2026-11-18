@@ -23,6 +23,8 @@ import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.Switch
+import android.provider.Settings
 import android.widget.TextView
 import android.widget.Toast
 import java.time.LocalDate
@@ -44,12 +46,16 @@ class MainActivity : Activity() {
     private val heatmaps = HashMap<Track, HeatmapView>()
     private val exChecks = HashMap<Int, CheckBox>()
     private lateinit var exLevelView: TextView
+    private lateinit var lockSwitch: Switch
+    private lateinit var lockHint: TextView
+    private var settingSwitch = false
     private var updatingChecks = false
     private lateinit var dateView: TextView
     private lateinit var noteEdit: EditText
     private lateinit var statsView: TextView
     private lateinit var moneyTodayView: TextView
-    private lateinit var moneyMonthView: TextView
+    private lateinit var moneyYearView: TextView
+    private lateinit var moneyTotalView: TextView
     private var night = false
     private val es = Locale("es")
 
@@ -84,6 +90,7 @@ class MainActivity : Activity() {
         dateView = tv(22f, bold = true)
         root.addView(dateView)
 
+        root.addView(lockOption())
         root.addView(moneyCard())
         for (cat in Cat.values()) root.addView(categoryCard(cat))
         root.addView(exerciseCard())
@@ -170,6 +177,10 @@ class MainActivity : Activity() {
         handler.post(tick)
         ActionReceiver.scheduleMidnight(this)
         LiveService.start(this)
+        settingSwitch = true
+        lockSwitch.isChecked = Store.lockScreenEnabled(this)
+        settingSwitch = false
+        refreshLockHint()
     }
 
     override fun onPause() {
@@ -246,11 +257,48 @@ class MainActivity : Activity() {
         return card
     }
 
+    /** Interruptor de la opción 4: pantalla de Progreso encima del bloqueo. */
+    private fun lockOption(): View {
+        val box = LinearLayout(this)
+        box.orientation = LinearLayout.VERTICAL
+        box.setPadding(0, dp(10), 0, 0)
+        lockSwitch = Switch(this)
+        lockSwitch.text = "Mostrar Progreso al prender la pantalla"
+        lockSwitch.textSize = 15f
+        lockSwitch.typeface = Fonts.medium(this)
+        lockSwitch.setTextColor(fg)
+        lockSwitch.setOnCheckedChangeListener { _, on ->
+            if (settingSwitch) return@setOnCheckedChangeListener
+            Store.setLockScreenEnabled(this, on)
+            if (on && !Settings.canDrawOverlays(this)) {
+                toast("Activa \"Mostrar sobre otras apps\" para Progreso")
+                try {
+                    startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+                } catch (_: Exception) {
+                }
+            }
+            refreshLockHint()
+        }
+        box.addView(lockSwitch)
+        lockHint = tv(12f)
+        lockHint.setTextColor(muted)
+        box.addView(lockHint)
+        return box
+    }
+
+    private fun refreshLockHint() {
+        val on = Store.lockScreenEnabled(this)
+        lockHint.text = when {
+            !on -> "Apagado: solo verás la tarjeta en las notificaciones."
+            !Settings.canDrawOverlays(this) -> "Falta el permiso \"Mostrar sobre otras apps\". Toca el interruptor de nuevo para abrirlo."
+            else -> "Listo. Al prender la pantalla verás tu dashboard; desliza hacia arriba para desbloquear."
+        }
+    }
+
     private fun moneyCard(): View {
         val card = LinearLayout(this)
-        card.orientation = LinearLayout.HORIZONTAL
-        card.gravity = Gravity.CENTER_VERTICAL
-        card.setPadding(dp(16), dp(12), dp(12), dp(12))
+        card.orientation = LinearLayout.VERTICAL
+        card.setPadding(dp(16), dp(12), dp(12), dp(10))
         val bg = GradientDrawable()
         bg.cornerRadius = dp(18).toFloat()
         bg.setColor(if (night) Color.parseColor("#0C447C") else Color.parseColor("#E6F1FB"))
@@ -261,6 +309,8 @@ class MainActivity : Activity() {
 
         val labelColor = if (night) Color.parseColor("#B5D4F4") else Color.parseColor("#185FA5")
         val valueColor = if (night) Color.parseColor("#E6F1FB") else Color.parseColor("#0C447C")
+        val row = LinearLayout(this)
+        row.orientation = LinearLayout.HORIZONTAL
         fun column(caption: String): TextView {
             val col = LinearLayout(this)
             col.orientation = LinearLayout.VERTICAL
@@ -268,38 +318,25 @@ class MainActivity : Activity() {
             cap.text = caption
             cap.setTextColor(labelColor)
             col.addView(cap)
-            val value = tv(24f, bold = true)
+            val value = tv(21f, bold = true)
             value.setTextColor(valueColor)
             col.addView(value)
-            card.addView(col, LinearLayout.LayoutParams(0, WRAP, 1f))
+            // Tocar cualquier monto: escribir el total correcto de hoy.
+            col.setOnClickListener { MoneyDialogs.editToday(this) { refreshAll() } }
+            row.addView(col, LinearLayout.LayoutParams(0, WRAP, 1f))
             return value
         }
         moneyTodayView = column("Dinero hoy")
-        moneyMonthView = column("Este mes")
-        card.addView(button("+ Dinero") { askMoney() }, LinearLayout.LayoutParams(WRAP, WRAP))
-        return card
-    }
+        moneyYearView = column("Este año")
+        moneyTotalView = column("Total")
+        card.addView(row)
 
-    private fun askMoney() {
-        val input = EditText(this)
-        input.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or
-            InputType.TYPE_NUMBER_FLAG_SIGNED
-        input.hint = "Ej: 85 (usa -20 para restar)"
-        val box = LinearLayout(this)
-        box.setPadding(dp(22), dp(8), dp(22), 0)
-        box.addView(input, LinearLayout.LayoutParams(MATCH, WRAP))
-        AlertDialog.Builder(this)
-            .setTitle("Dinero ganado hoy (S/)")
-            .setView(box)
-            .setPositiveButton("Sumar") { _, _ ->
-                val v = parseSoles(input.text.toString())
-                if (v != null) {
-                    Store.addMoney(this, Store.today(), v)
-                    refreshAll()
-                }
-            }
-            .setNegativeButton("Cancelar", null)
-            .show()
+        val actions = LinearLayout(this)
+        actions.orientation = LinearLayout.HORIZONTAL
+        actions.addView(button("Editar hoy") { MoneyDialogs.editToday(this) { refreshAll() } }, LinearLayout.LayoutParams(0, WRAP, 1f))
+        actions.addView(button("+ Sumar") { MoneyDialogs.addToday(this) { refreshAll() } }, LinearLayout.LayoutParams(0, WRAP, 1f))
+        card.addView(actions)
+        return card
     }
 
     private fun exerciseCard(): View {
@@ -393,7 +430,8 @@ class MainActivity : Activity() {
         for (hm in heatmaps.values) hm.setDays(days)
         statsView.text = stats(days)
         moneyTodayView.text = fmtSoles(days[today]?.money ?: 0.0)
-        moneyMonthView.text = fmtSoles(Store.moneyThisMonth(days))
+        moneyYearView.text = fmtSoles(Store.moneyThisYear(days))
+        moneyTotalView.text = fmtSoles(Store.moneyTotal(days))
         val ex = days[today]?.ex ?: 0
         updatingChecks = true
         for ((bit, cb) in exChecks) cb.isChecked = ex and bit != 0

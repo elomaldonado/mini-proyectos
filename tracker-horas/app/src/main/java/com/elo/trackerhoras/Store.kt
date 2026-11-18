@@ -125,6 +125,25 @@ object Store {
         save(c, days)
     }
 
+    fun setMoney(c: Context, date: LocalDate, soles: Double) {
+        val days = load(c)
+        days.getOrPut(date) { Day() }.money = maxOf(0.0, soles)
+        save(c, days)
+    }
+
+    fun moneyThisYear(days: Map<LocalDate, Day>): Double {
+        val y = today().year
+        return days.filterKeys { it.year == y }.values.sumOf { it.money }
+    }
+
+    fun moneyTotal(days: Map<LocalDate, Day>): Double = days.values.sumOf { it.money }
+
+    /** Preferencia: mostrar la pantalla de Progreso encima del bloqueo al prender la pantalla. */
+    fun lockScreenEnabled(c: Context): Boolean = prefs(c).getBoolean("lockScreen", false)
+    fun setLockScreenEnabled(c: Context, on: Boolean) {
+        prefs(c).edit().putBoolean("lockScreen", on).commit()
+    }
+
     fun moneyToday(c: Context): Double = load(c)[today()]?.money ?: 0.0
 
     fun moneyThisMonth(days: Map<LocalDate, Day>): Double {
