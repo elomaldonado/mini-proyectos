@@ -25,14 +25,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Dinero hoy"
-                android:textColor="#3B6D11"
+                android:textColor="#185FA5"
                 android:textSize="11sp" />
 
             <TextView
                 android:id="@+id/n_money_today"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="#27500A"
+                android:textColor="#0C447C"
                 android:textSize="17sp"
                 android:textStyle="bold" />
         </LinearLayout>
@@ -52,32 +52,24 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Este mes"
-                android:textColor="#3B6D11"
+                android:textColor="#185FA5"
                 android:textSize="11sp" />
 
             <TextView
                 android:id="@+id/n_money_month"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="#27500A"
+                android:textColor="#0C447C"
                 android:textSize="17sp"
                 android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/n_hours"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:maxLines="2"
-        android:textAppearance="@android:style/TextAppearance.Material.Notification" />
-
     <ImageView
         android:id="@+id/n_heatmap"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="10dp"
         android:adjustViewBounds="true"
         android:contentDescription="Mapa de calor de los últimos 6 meses"
         android:scaleType="fitStart" />

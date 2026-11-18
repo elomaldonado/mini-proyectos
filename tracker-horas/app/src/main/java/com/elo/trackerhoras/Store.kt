@@ -12,8 +12,30 @@ enum class Cat(val key: String, val label: String) {
     ZH("zh", "中文"),
 }
 
-/** Un día: segundos de trabajo, segundos de mandarín, dinero ganado (soles) y una nota libre. */
-class Day(var work: Long = 0, var zh: Long = 0, var note: String = "", var money: Double = 0.0) {
+/** Lo que se puede marcar de ejercicio cada día (se guarda como bits). */
+object Ex {
+    const val STEPS = 1 // 8k pasos
+    const val CALI = 2 // 20 min calistenia
+    const val RUN = 4 // correr / saltar soga
+
+    /** 1: 8k · 2: 8k + calistenia · 3: 8k + correr/soga · 4: 8k + correr/soga + calistenia */
+    fun level(bits: Int): Int = when {
+        bits and RUN != 0 && bits and CALI != 0 -> 4
+        bits and RUN != 0 -> 3
+        bits and CALI != 0 -> 2
+        bits and STEPS != 0 -> 1
+        else -> 0
+    }
+}
+
+/** Un día: segundos de trabajo y de mandarín, dinero ganado (soles), ejercicio y una nota libre. */
+class Day(
+    var work: Long = 0,
+    var zh: Long = 0,
+    var note: String = "",
+    var money: Double = 0.0,
+    var ex: Int = 0,
+) {
     fun get(cat: Cat): Long = if (cat == Cat.WORK) work else zh
 
     fun add(cat: Cat, secs: Long) {
@@ -21,7 +43,7 @@ class Day(var work: Long = 0, var zh: Long = 0, var note: String = "", var money
     }
 
     fun total(): Long = work + zh
-    fun isEmpty(): Boolean = work == 0L && zh == 0L && note.isBlank() && money == 0.0
+    fun isEmpty(): Boolean = work == 0L && zh == 0L && note.isBlank() && money == 0.0 && ex == 0
 }
 
 /** Guarda todo en el teléfono (SharedPreferences, como JSON). Sin internet, sin cuentas. */
@@ -37,7 +59,7 @@ object Store {
         val o = JSONObject(raw)
         for (k in o.keys()) {
             val d = o.getJSONObject(k)
-            out[LocalDate.parse(k)] = Day(d.optLong("w"), d.optLong("z"), d.optString("n"), d.optDouble("m", 0.0))
+            out[LocalDate.parse(k)] = Day(d.optLong("w"), d.optLong("z"), d.optString("n"), d.optDouble("m", 0.0), d.optInt("e", 0))
         }
         return out
     }
@@ -45,7 +67,7 @@ object Store {
     fun save(c: Context, days: Map<LocalDate, Day>) {
         val o = JSONObject()
         for ((k, d) in days) {
-            if (!d.isEmpty()) o.put(k.toString(), JSONObject().put("w", d.work).put("z", d.zh).put("n", d.note).put("m", d.money))
+            if (!d.isEmpty()) o.put(k.toString(), JSONObject().put("w", d.work).put("z", d.zh).put("n", d.note).put("m", d.money).put("e", d.ex))
         }
         prefs(c).edit().putString("days", o.toString()).commit()
     }
@@ -93,6 +115,13 @@ object Store {
         val days = load(c)
         val d = days.getOrPut(date) { Day() }
         d.money = maxOf(0.0, d.money + soles)
+        save(c, days)
+    }
+
+    fun toggleEx(c: Context, date: LocalDate, bit: Int) {
+        val days = load(c)
+        val d = days.getOrPut(date) { Day() }
+        d.ex = d.ex xor bit
         save(c, days)
     }
 

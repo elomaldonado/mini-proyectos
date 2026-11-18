@@ -10,27 +10,41 @@ import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
 
+/** Los tres mapas de calor. */
+enum class Track(val label: String) {
+    WORK("Trabajo"),
+    ZH("中文"),
+    EX("Ejercicio"),
+}
+
 /**
  * Dibuja el mapa de calor (26 semanas, lunes arriba). Lo usan la pantalla de la app
- * y la notificación de la pantalla de bloqueo, así se ven idénticos.
+ * y la tarjeta de la pantalla de bloqueo, así se ven idénticos.
  *
- *  Trabajo (azules): 1h · 2–3h · 3–5h · 6h+
- *  中文    (verdes): 1h · 2h · 3h · 3h+
+ *  Trabajo   (azules):     1h · 2–3h · 3–5h · 6h+
+ *  中文       (verdes):     1h · 2h · 3h · 3h+
+ *  Ejercicio (rojos suaves): 8k · 8k+calistenia · 8k+correr/soga · todo
  */
 object HeatmapRenderer {
     const val WEEKS = 26
 
     private val BLUES = intArrayOf(0xFFC9D9F5.toInt(), 0xFF6E9EEA.toInt(), 0xFF3A78D8.toInt(), 0xFF1155CC.toInt())
     private val GREENS = intArrayOf(0xFFC6EBC5.toInt(), 0xFF7BCB7A.toInt(), 0xFF34A853.toInt(), 0xFF1B6E33.toInt())
+    private val REDS = intArrayOf(0xFFFAD4D4.toInt(), 0xFFF4A6A6.toInt(), 0xFFE87C7C.toInt(), 0xFFD45555.toInt())
 
-    fun legend(cat: Cat): List<String> =
-        if (cat == Cat.WORK) listOf("0", "1h", "2–3h", "3–5h", "6h+")
-        else listOf("0", "1h", "2h", "3h", "3h+")
+    fun legend(t: Track): List<String> = when (t) {
+        Track.WORK -> listOf("0", "1h", "2–3h", "3–5h", "6h+")
+        Track.ZH -> listOf("0", "1h", "2h", "3h", "3h+")
+        Track.EX -> listOf("Nada", "8k pasos", "8k + calistenia", "8k + correr/soga", "8k + correr/soga + calistenia")
+    }
 
-    fun level(cat: Cat, secs: Long): Int {
+    fun level(t: Track, day: Day?): Int {
+        if (day == null) return 0
+        if (t == Track.EX) return Ex.level(day.ex)
+        val secs = if (t == Track.WORK) day.work else day.zh
         if (secs <= 0L) return 0
         val h = secs / 3600.0
-        return if (cat == Cat.WORK) {
+        return if (t == Track.WORK) {
             when {
                 h < 1.5 -> 1
                 h < 3.5 -> 2
@@ -47,9 +61,13 @@ object HeatmapRenderer {
         }
     }
 
-    fun color(cat: Cat, level: Int, night: Boolean): Int {
+    fun color(t: Track, level: Int, night: Boolean): Int {
         if (level <= 0) return if (night) 0xFF3A414B.toInt() else 0xFFE4E8EE.toInt()
-        val ramp = if (cat == Cat.WORK) BLUES else GREENS
+        val ramp = when (t) {
+            Track.WORK -> BLUES
+            Track.ZH -> GREENS
+            Track.EX -> REDS
+        }
         return ramp[minOf(level, 4) - 1]
     }
 
@@ -63,7 +81,7 @@ object HeatmapRenderer {
     fun draw(
         canvas: Canvas,
         days: Map<LocalDate, Day>,
-        cat: Cat,
+        t: Track,
         x0: Float,
         y0: Float,
         cell: Float,
@@ -71,6 +89,7 @@ object HeatmapRenderer {
         textPaint: Paint,
         outline: Int,
         night: Boolean,
+        showNoteDots: Boolean = true,
     ): Float {
         val start = firstMonday()
         val today = Store.today()
@@ -102,12 +121,12 @@ object HeatmapRenderer {
                 val right = left + cell - gap
                 val bottom = top + cell - gap
                 val day = days[date]
-                val lvl = level(cat, day?.get(cat) ?: 0L)
-                fill.color = color(cat, lvl, night)
+                val lvl = level(t, day)
+                fill.color = color(t, lvl, night)
                 canvas.drawRoundRect(left, top, right, bottom, radius, radius, fill)
 
                 // Puntito si el día tiene nota (Pingtung, examen, drained…)
-                if (day != null && day.note.isNotBlank()) {
+                if (showNoteDots && day != null && day.note.isNotBlank()) {
                     fill.color = if (lvl >= 2) 0xFFFFFFFF.toInt() else 0xFF555555.toInt()
                     canvas.drawCircle(right - cell * 0.22f, top + cell * 0.22f, cell * 0.09f, fill)
                 }
@@ -117,30 +136,40 @@ object HeatmapRenderer {
         return monthLabelH + cell * 7
     }
 
-    /** Imagen con los dos mapas, para la notificación de la pantalla de bloqueo. */
+    /** Imagen con los tres mapas, para la tarjeta de la pantalla de bloqueo. */
     fun bitmapForNotification(c: Context, days: Map<LocalDate, Day>): Bitmap {
         val night = isNight(c)
         val density = c.resources.displayMetrics.density
         val width = (300 * density).toInt()
         val cell = width / WEEKS.toFloat()
-        val labelH = 14 * density
+        val labelH = 15 * density
         val monthH = 12 * density
+        val spacing = 6 * density
         val blockH = labelH + monthH + cell * 7
-        val height = (blockH * 2 + 6 * density).toInt()
+        val tracks = Track.values()
+        val height = (blockH * tracks.size + spacing * (tracks.size - 1)).toInt() + 2
 
         val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         val muted = if (night) 0xFFB0B8C0.toInt() else 0xFF5F6670.toInt()
-        val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 11 * density; color = muted }
-        val monthPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 9 * density; color = muted }
+        val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = 12 * density
+            color = muted
+            typeface = Fonts.medium(c)
+        }
+        val monthPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = 9 * density
+            color = muted
+            typeface = Fonts.regular(c)
+        }
         val outline = if (night) 0xFFFFFFFF.toInt() else 0xFF1F2328.toInt()
 
         var y = 0f
-        for (cat in Cat.values()) {
-            canvas.drawText("${cat.label} · 6 meses", 0f, y + labelH * 0.8f, titlePaint)
+        for (t in tracks) {
+            canvas.drawText(t.label, 0f, y + labelH * 0.8f, titlePaint)
             y += labelH
-            y += draw(canvas, days, cat, 0f, y, cell, monthH, monthPaint, outline, night)
-            y += 6 * density
+            y += draw(canvas, days, t, 0f, y, cell, monthH, monthPaint, outline, night, showNoteDots = false)
+            y += spacing
         }
         return bmp
     }

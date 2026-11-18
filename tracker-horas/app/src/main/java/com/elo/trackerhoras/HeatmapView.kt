@@ -12,7 +12,7 @@ import java.time.LocalDate
 @SuppressLint("ViewConstructor")
 class HeatmapView(
     context: Context,
-    private val cat: Cat,
+    private val track: Track,
     private val night: Boolean,
     private val onTap: (LocalDate) -> Unit,
 ) : View(context) {
@@ -25,6 +25,7 @@ class HeatmapView(
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = 10 * density
         color = if (night) 0xFF9AA4AF.toInt() else 0xFF656D76.toInt()
+        typeface = Fonts.regular(context)
     }
     private val outline = if (night) 0xFFFFFFFF.toInt() else 0xFF1F2328.toInt()
 
@@ -40,7 +41,7 @@ class HeatmapView(
     }
 
     override fun onDraw(canvas: Canvas) {
-        HeatmapRenderer.draw(canvas, days, cat, 0f, 0f, cell, monthH, textPaint, outline, night)
+        HeatmapRenderer.draw(canvas, days, track, 0f, 0f, cell, monthH, textPaint, outline, night)
     }
 
     @SuppressLint("ClickableViewAccessibility")

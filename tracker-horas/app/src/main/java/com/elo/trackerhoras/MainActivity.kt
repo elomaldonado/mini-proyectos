@@ -19,6 +19,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -40,7 +41,10 @@ class MainActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private val totalViews = HashMap<Cat, TextView>()
     private val startButtons = HashMap<Cat, Button>()
-    private val heatmaps = HashMap<Cat, HeatmapView>()
+    private val heatmaps = HashMap<Track, HeatmapView>()
+    private val exChecks = HashMap<Int, CheckBox>()
+    private lateinit var exLevelView: TextView
+    private var updatingChecks = false
     private lateinit var dateView: TextView
     private lateinit var noteEdit: EditText
     private lateinit var statsView: TextView
@@ -82,9 +86,11 @@ class MainActivity : Activity() {
 
         root.addView(moneyCard())
         for (cat in Cat.values()) root.addView(categoryCard(cat))
+        root.addView(exerciseCard())
 
         root.addView(label("Nota del día"))
         noteEdit = EditText(this)
+        noteEdit.typeface = Fonts.regular(this)
         noteEdit.hint = "Pingtung, examen, drained…"
         noteEdit.setTextColor(fg)
         noteEdit.setHintTextColor(muted)
@@ -101,16 +107,16 @@ class MainActivity : Activity() {
         title.setPadding(0, dp(24), 0, dp(2))
         root.addView(title)
         val hint = tv(13f)
-        hint.text = "Toca un día para editar sus horas o su nota."
+        hint.text = "Toca un día para editarlo."
         hint.setTextColor(muted)
         root.addView(hint)
 
-        for (cat in Cat.values()) {
-            root.addView(label(cat.label))
-            val hm = HeatmapView(this, cat, night) { date -> editDay(date) }
-            heatmaps[cat] = hm
+        for (t in Track.values()) {
+            root.addView(label(t.label))
+            val hm = HeatmapView(this, t, night) { date -> editDay(date) }
+            heatmaps[t] = hm
             root.addView(hm, LinearLayout.LayoutParams(MATCH, WRAP))
-            root.addView(legend(cat))
+            root.addView(legend(t))
         }
 
         val io = LinearLayout(this)
@@ -177,7 +183,7 @@ class MainActivity : Activity() {
         val t = TextView(this)
         t.textSize = size
         t.setTextColor(fg)
-        if (bold) t.typeface = Typeface.DEFAULT_BOLD
+        t.typeface = if (bold) Fonts.medium(this) else Fonts.regular(this)
         return t
     }
 
@@ -192,6 +198,7 @@ class MainActivity : Activity() {
         val b = Button(this)
         b.text = text
         b.isAllCaps = false
+        b.typeface = Fonts.medium(this)
         b.setOnClickListener { onClick() }
         return b
     }
@@ -245,14 +252,14 @@ class MainActivity : Activity() {
         card.setPadding(dp(16), dp(12), dp(12), dp(12))
         val bg = GradientDrawable()
         bg.cornerRadius = dp(18).toFloat()
-        bg.setColor(if (night) Color.parseColor("#27500A") else Color.parseColor("#EAF3DE"))
+        bg.setColor(if (night) Color.parseColor("#0C447C") else Color.parseColor("#E6F1FB"))
         card.background = bg
         val lp = LinearLayout.LayoutParams(MATCH, WRAP)
         lp.topMargin = dp(14)
         card.layoutParams = lp
 
-        val labelColor = if (night) Color.parseColor("#C0DD97") else Color.parseColor("#3B6D11")
-        val valueColor = if (night) Color.parseColor("#EAF3DE") else Color.parseColor("#27500A")
+        val labelColor = if (night) Color.parseColor("#B5D4F4") else Color.parseColor("#185FA5")
+        val valueColor = if (night) Color.parseColor("#E6F1FB") else Color.parseColor("#0C447C")
         fun column(caption: String): TextView {
             val col = LinearLayout(this)
             col.orientation = LinearLayout.VERTICAL
@@ -282,7 +289,7 @@ class MainActivity : Activity() {
         box.addView(input, LinearLayout.LayoutParams(MATCH, WRAP))
         AlertDialog.Builder(this)
             .setTitle("Dinero ganado hoy (S/)")
-            .setView(box)
+            .setView(scroll)
             .setPositiveButton("Sumar") { _, _ ->
                 val v = parseSoles(input.text.toString())
                 if (v != null) {
@@ -294,28 +301,84 @@ class MainActivity : Activity() {
             .show()
     }
 
-    private fun legend(cat: Cat): View {
-        val row = LinearLayout(this)
-        row.orientation = LinearLayout.HORIZONTAL
-        row.gravity = Gravity.CENTER_VERTICAL
-        row.setPadding(0, dp(12), 0, 0)
-        val names = HeatmapRenderer.legend(cat)
+    private fun exerciseCard(): View {
+        val card = LinearLayout(this)
+        card.orientation = LinearLayout.VERTICAL
+        card.setPadding(dp(16), dp(14), dp(16), dp(12))
+        val bg = GradientDrawable()
+        bg.cornerRadius = dp(18).toFloat()
+        bg.setColor(if (night) Color.parseColor("#501313") else Color.parseColor("#FCEBEB"))
+        card.background = bg
+        val lp = LinearLayout.LayoutParams(MATCH, WRAP)
+        lp.topMargin = dp(14)
+        card.layoutParams = lp
+
+        val labelColor = if (night) Color.parseColor("#F7C1C1") else Color.parseColor("#A32D2D")
+        val valueColor = if (night) Color.parseColor("#FCEBEB") else Color.parseColor("#791F1F")
+        val name = tv(15f)
+        name.text = "Ejercicio"
+        name.setTextColor(labelColor)
+        card.addView(name)
+        exLevelView = tv(22f, bold = true)
+        exLevelView.setTextColor(valueColor)
+        card.addView(exLevelView)
+
+        for ((bit, text) in listOf(Ex.STEPS to "8k pasos", Ex.CALI to "20 min calistenia", Ex.RUN to "Correr / saltar soga")) {
+            val cb = CheckBox(this)
+            cb.text = text
+            cb.textSize = 16f
+            cb.typeface = Fonts.regular(this)
+            cb.setTextColor(valueColor)
+            cb.setOnCheckedChangeListener { _, _ ->
+                if (!updatingChecks) {
+                    Store.toggleEx(this, Store.today(), bit)
+                    refreshAll()
+                }
+            }
+            exChecks[bit] = cb
+            card.addView(cb)
+        }
+        return card
+    }
+
+    private fun exLevelText(bits: Int): String {
+        val lvl = Ex.level(bits)
+        return if (lvl == 0) "Sin marcar" else "Nivel $lvl de 4"
+    }
+
+    private fun legend(t: Track): View {
+        // Ejercicio tiene textos largos: una fila por nivel. Los demás, todo en una fila.
+        val vertical = t == Track.EX
+        val box = LinearLayout(this)
+        box.orientation = if (vertical) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+        box.setPadding(0, dp(10), 0, 0)
+        val names = HeatmapRenderer.legend(t)
+        var row = box
         for (i in names.indices) {
+            if (vertical) {
+                row = LinearLayout(this)
+                row.orientation = LinearLayout.HORIZONTAL
+                row.gravity = Gravity.CENTER_VERTICAL
+                row.setPadding(0, dp(2), 0, dp(2))
+                box.addView(row)
+            } else {
+                box.gravity = Gravity.CENTER_VERTICAL
+            }
             val swatch = View(this)
             val d = GradientDrawable()
             d.cornerRadius = dp(3).toFloat()
-            d.setColor(HeatmapRenderer.color(cat, i, night))
+            d.setColor(HeatmapRenderer.color(t, i, night))
             swatch.background = d
             val lp = LinearLayout.LayoutParams(dp(14), dp(14))
-            lp.marginStart = if (i == 0) 0 else dp(10)
-            lp.marginEnd = dp(4)
+            lp.marginStart = if (i == 0 || vertical) 0 else dp(10)
+            lp.marginEnd = dp(6)
             row.addView(swatch, lp)
-            val t = tv(12f)
-            t.text = names[i]
-            t.setTextColor(muted)
-            row.addView(t)
+            val lbl = tv(12f)
+            lbl.text = names[i]
+            lbl.setTextColor(muted)
+            row.addView(lbl)
         }
-        return row
+        return box
     }
 
     // ---------- Datos ----------
@@ -330,6 +393,11 @@ class MainActivity : Activity() {
         statsView.text = stats(days)
         moneyTodayView.text = fmtSoles(days[today]?.money ?: 0.0)
         moneyMonthView.text = fmtSoles(Store.moneyThisMonth(days))
+        val ex = days[today]?.ex ?: 0
+        updatingChecks = true
+        for ((bit, cb) in exChecks) cb.isChecked = ex and bit != 0
+        updatingChecks = false
+        exLevelView.text = exLevelText(ex)
         refreshTotals()
         Notifier.update(this)
     }
@@ -357,9 +425,12 @@ class MainActivity : Activity() {
         }
         var money30 = 0.0
         for (i in 0 until 30) money30 += days[today.minusDays(i.toLong())]?.money ?: 0.0
+        var exDays = 0
+        for (i in 0 until 7) if ((days[today.minusDays(i.toLong())]?.ex ?: 0) != 0) exDays++
         return "Últimos 7 días:  Trabajo ${hrs(sum(Cat.WORK, 7))} · 中文 ${hrs(sum(Cat.ZH, 7))}\n" +
             "Últimos 30 días:  Trabajo ${hrs(sum(Cat.WORK, 30))} · 中文 ${hrs(sum(Cat.ZH, 30))}\n" +
             "Dinero últimos 30 días: ${fmtSoles(money30)}\n" +
+            "Ejercicio: $exDays de los últimos 7 días\n" +
             "Racha: $streak ${if (streak == 1) "día" else "días"} seguidos"
     }
 
@@ -415,10 +486,24 @@ class MainActivity : Activity() {
             box.addView(t)
             box.addView(field)
         }
+        val exTitle = TextView(this)
+        exTitle.text = "Ejercicio"
+        exTitle.setPadding(0, dp(10), 0, 0)
+        box.addView(exTitle)
+        val dialogChecks = LinkedHashMap<Int, CheckBox>()
+        for ((bit, text) in listOf(Ex.STEPS to "8k pasos", Ex.CALI to "20 min calistenia", Ex.RUN to "Correr / saltar soga")) {
+            val cb = CheckBox(this)
+            cb.text = text
+            cb.isChecked = d.ex and bit != 0
+            dialogChecks[bit] = cb
+            box.addView(cb)
+        }
+        val scroll = ScrollView(this)
+        scroll.addView(box)
 
         AlertDialog.Builder(this)
             .setTitle(date.format(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM yyyy", es)))
-            .setView(box)
+            .setView(scroll)
             .setPositiveButton("Guardar") { _, _ ->
                 val all = Store.load(this)
                 val day = all.getOrPut(date) { Day() }
@@ -426,6 +511,9 @@ class MainActivity : Activity() {
                 day.zh = parseHours(zh.text.toString())
                 day.note = note.text.toString().trim()
                 day.money = (parseSoles(money.text.toString()) ?: 0.0).coerceAtLeast(0.0)
+                var bits = 0
+                for ((bit, cb) in dialogChecks) if (cb.isChecked) bits = bits or bit
+                day.ex = bits
                 Store.save(this, all)
                 if (date == Store.today()) noteEdit.setText(day.note)
                 refreshAll()

@@ -13,9 +13,9 @@ import android.widget.RemoteViews
 
 /**
  * La tarjeta fija de la pantalla de bloqueo, encima de tu fondo de pantalla:
+ *  - arriba, el cronómetro con lo que estás haciendo ("Progreso · 中文 · 0:42:10")
  *  - dinero ganado hoy y en el mes (S/)
- *  - horas de hoy de trabajo y 中文 (con cronómetro si está corriendo)
- *  - los dos mapas de calor de 6 meses
+ *  - los tres mapas de calor: Trabajo, 中文 y Ejercicio
  *  - botones ▶/⏸ Trabajo, ▶/⏸ 中文 y "+ Dinero" (se escribe el monto ahí mismo)
  */
 object Notifier {
@@ -53,22 +53,16 @@ object Notifier {
         val moneyToday = Store.moneyToday(c)
         val moneyMonth = Store.moneyThisMonth(days)
 
-        val hoursLine = buildString {
-            append("Trabajo ").append(fmtH(work))
-            if (run == Cat.WORK) append(" ▶")
-            append("  ·  中文 ").append(fmtH(zh))
-            if (run == Cat.ZH) append(" ▶")
-        }
-        val title = if (run == null) "Hoy: ${fmtSoles(moneyToday)}" else "${run.label} en curso · ${fmtSoles(moneyToday)} hoy"
+        val title = "Dinero hoy ${fmtSoles(moneyToday)} · Este mes ${fmtSoles(moneyMonth)}"
+        val hoursLine = "Trabajo ${fmtH(work)} · 中文 ${fmtH(zh)}" // solo para lectores de pantalla / vista mínima
 
         val small = RemoteViews(c.packageName, R.layout.notif_small)
         small.setTextViewText(R.id.n_title, title)
-        small.setTextViewText(R.id.n_text, hoursLine)
+        small.setViewVisibility(R.id.n_text, android.view.View.GONE)
 
         val big = RemoteViews(c.packageName, R.layout.notif_big)
         big.setTextViewText(R.id.n_money_today, fmtSoles(moneyToday))
         big.setTextViewText(R.id.n_money_month, fmtSoles(moneyMonth))
-        big.setTextViewText(R.id.n_hours, hoursLine)
         big.setImageViewBitmap(R.id.n_heatmap, HeatmapRenderer.bitmapForNotification(c, days))
 
         val open = PendingIntent.getActivity(
@@ -94,6 +88,7 @@ object Notifier {
         } else {
             val runningTotal = Store.todaySecs(c, run)
             b.setShowWhen(true)
+                .setSubText(run.label) // "Progreso · 中文 · 0:42:10"
                 .setUsesChronometer(true)
                 .setWhen(System.currentTimeMillis() - runningTotal * 1000)
                 .setCategory(Notification.CATEGORY_STOPWATCH)
