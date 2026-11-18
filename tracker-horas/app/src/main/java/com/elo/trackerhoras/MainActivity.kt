@@ -289,7 +289,7 @@ class MainActivity : Activity() {
         box.addView(input, LinearLayout.LayoutParams(MATCH, WRAP))
         AlertDialog.Builder(this)
             .setTitle("Dinero ganado hoy (S/)")
-            .setView(scroll)
+            .setView(box)
             .setPositiveButton("Sumar") { _, _ ->
                 val v = parseSoles(input.text.toString())
                 if (v != null) {
