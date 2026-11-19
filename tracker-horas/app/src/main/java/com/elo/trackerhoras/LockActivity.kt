@@ -27,8 +27,8 @@ import kotlin.math.abs
 /**
  * Pantalla de Progreso encima del bloqueo (opción 4).
  * Al prender la pantalla aparece sobre el bloqueo de Samsung, que queda detrás borroso
- * (con tu fondo de ese momento). Muestra la hora, el cronómetro de lo que está corriendo,
- * el dinero (hoy · año · total) y los tres mapas en grande, con botones que funcionan.
+ * (con tu fondo de ese momento). Muestra la hora, el resumen de hoy (Trabajo y 中文, con el
+ * cronómetro en vivo en el que está corriendo) y los tres mapas en grande, con ▶/⏸.
  * Deslizar hacia arriba → pide la huella / PIN y desbloquea.
  */
 class LockActivity : Activity() {
@@ -38,13 +38,15 @@ class LockActivity : Activity() {
         private const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
     }
 
-    private lateinit var stateView: TextView
-    private lateinit var labelView: TextView
-    private lateinit var chrono: Chronometer
-    private lateinit var summaryView: TextView
-    private lateinit var moneyToday: TextView
-    private lateinit var moneyYear: TextView
-    private lateinit var moneyTotal: TextView
+    /** Un cuadro del resumen de hoy (Trabajo o 中文). */
+    private class Tile(
+        val caption: TextView,
+        val total: TextView,
+        val chrono: Chronometer,
+        val bg: GradientDrawable,
+    )
+
+    private val tiles = HashMap<Cat, Tile>()
     private val heatmaps = ArrayList<HeatmapView>()
     private val toggles = HashMap<Cat, Button>()
     private lateinit var gestures: GestureDetector
@@ -99,35 +101,17 @@ class LockActivity : Activity() {
         cardLp.topMargin = dp(24)
         root.addView(card, cardLp)
 
-        // Cronómetro
-        val top = LinearLayout(this)
-        top.orientation = LinearLayout.HORIZONTAL
-        top.gravity = Gravity.CENTER_VERTICAL
-        val left = LinearLayout(this)
-        left.orientation = LinearLayout.VERTICAL
-        stateView = text(12f, soft)
-        labelView = text(18f, white, bold = true)
-        left.addView(stateView)
-        left.addView(labelView)
-        top.addView(left, LinearLayout.LayoutParams(0, WRAP, 1f))
-        chrono = Chronometer(this)
-        chrono.textSize = 32f
-        chrono.setTextColor(white)
-        chrono.typeface = Fonts.medium(this)
-        top.addView(chrono)
-        card.addView(top)
-        summaryView = text(13f, soft)
-        card.addView(summaryView)
-
-        // Dinero: hoy · año · total (tocar = editar el de hoy)
-        val money = LinearLayout(this)
-        money.orientation = LinearLayout.HORIZONTAL
-        val moneyLp = LinearLayout.LayoutParams(MATCH, WRAP)
-        moneyLp.topMargin = dp(12)
-        card.addView(money, moneyLp)
-        moneyToday = moneyTile(money, "Hoy", last = false)
-        moneyYear = moneyTile(money, "Este año", last = false)
-        moneyTotal = moneyTile(money, "Total", last = true)
+        // Resumen de hoy: Trabajo y 中文. El que está corriendo muestra el cronómetro en vivo.
+        val hoy = text(12f, soft)
+        hoy.text = "Hoy"
+        card.addView(hoy)
+        val row = LinearLayout(this)
+        row.orientation = LinearLayout.HORIZONTAL
+        val rowLp = LinearLayout.LayoutParams(MATCH, WRAP)
+        rowLp.topMargin = dp(6)
+        card.addView(row, rowLp)
+        tiles[Cat.WORK] = summaryTile(row, Cat.WORK, "#1C2A44", "#8FB0E8", last = false)
+        tiles[Cat.ZH] = summaryTile(row, Cat.ZH, "#1B3324", "#8FD3A0", last = true)
 
         // Mapas (sin edición al tocar: eso se hace dentro de la app)
         for (t in Track.values()) {
@@ -155,7 +139,6 @@ class LockActivity : Activity() {
             toggles[cat] = b
             actions.addView(b, LinearLayout.LayoutParams(0, WRAP, 1f))
         }
-        actions.addView(flatButton("+ Dinero") { MoneyDialogs.addToday(this) { refresh() } }, LinearLayout.LayoutParams(0, WRAP, 1f))
 
         // Espacio y aviso para desbloquear
         val spacer = View(this)
@@ -219,26 +202,24 @@ class LockActivity : Activity() {
     private fun refresh() {
         val days = Store.load(this)
         val run = Store.running(this)
-        val work = Store.todaySecs(this, Cat.WORK)
-        val zh = Store.todaySecs(this, Cat.ZH)
-        if (run != null) {
-            val other = if (run == Cat.WORK) Cat.ZH else Cat.WORK
-            stateView.text = "En curso"
-            labelView.text = run.label
-            chrono.base = SystemClock.elapsedRealtime() - Store.todaySecs(this, run) * 1000
-            chrono.visibility = View.VISIBLE
-            chrono.start()
-            summaryView.text = "Hoy también: ${other.label} ${fmtH(Store.todaySecs(this, other))}"
-        } else {
-            chrono.stop()
-            chrono.visibility = View.GONE
-            stateView.text = "Hoy"
-            labelView.text = "Trabajo ${fmtH(work)} · 中文 ${fmtH(zh)}"
-            summaryView.text = "Toca ▶ para empezar a contar"
+        for ((cat, tile) in tiles) {
+            val secs = Store.todaySecs(this, cat)
+            if (run == cat) {
+                tile.caption.text = "${cat.label} · en curso"
+                tile.chrono.base = SystemClock.elapsedRealtime() - secs * 1000
+                tile.chrono.visibility = View.VISIBLE
+                tile.chrono.start()
+                tile.total.visibility = View.GONE
+                tile.bg.setStroke(dp(2), if (cat == Cat.WORK) Color.parseColor("#3A78D8") else Color.parseColor("#34A853"))
+            } else {
+                tile.caption.text = cat.label
+                tile.chrono.stop()
+                tile.chrono.visibility = View.GONE
+                tile.total.text = fmtH(secs)
+                tile.total.visibility = View.VISIBLE
+                tile.bg.setStroke(0, Color.TRANSPARENT)
+            }
         }
-        moneyToday.text = fmtSoles(days[Store.today()]?.money ?: 0.0)
-        moneyYear.text = fmtSoles(Store.moneyThisYear(days))
-        moneyTotal.text = fmtSoles(Store.moneyTotal(days))
         for (hm in heatmaps) hm.setDays(days)
         for ((cat, b) in toggles) b.text = if (run == cat) "⏸ ${cat.label}" else "▶ ${cat.label}"
     }
@@ -253,25 +234,30 @@ class LockActivity : Activity() {
         return t
     }
 
-    private fun moneyTile(row: LinearLayout, caption: String, last: Boolean): TextView {
-        val tile = LinearLayout(this)
-        tile.orientation = LinearLayout.VERTICAL
-        tile.setPadding(dp(10), dp(6), dp(10), dp(6))
+    private fun summaryTile(row: LinearLayout, cat: Cat, bgColor: String, capColor: String, last: Boolean): Tile {
+        val box = LinearLayout(this)
+        box.orientation = LinearLayout.VERTICAL
+        box.setPadding(dp(12), dp(8), dp(12), dp(8))
         val bg = GradientDrawable()
-        bg.cornerRadius = dp(14).toFloat()
-        bg.setColor(Color.parseColor("#E6F1FB"))
-        tile.background = bg
-        val cap = text(11f, Color.parseColor("#185FA5"))
-        cap.text = caption
-        tile.addView(cap)
-        val value = text(17f, Color.parseColor("#0C447C"), bold = true)
-        value.maxLines = 1
-        tile.addView(value)
-        tile.setOnClickListener { MoneyDialogs.editToday(this) { refresh() } }
+        bg.cornerRadius = dp(16).toFloat()
+        bg.setColor(Color.parseColor(bgColor))
+        box.background = bg
+        val caption = text(12f, Color.parseColor(capColor))
+        caption.text = cat.label
+        box.addView(caption)
+        val total = text(24f, white, bold = true)
+        total.maxLines = 1
+        box.addView(total)
+        val chrono = Chronometer(this)
+        chrono.textSize = 24f
+        chrono.setTextColor(white)
+        chrono.typeface = Fonts.medium(this)
+        chrono.visibility = View.GONE
+        box.addView(chrono)
         val lp = LinearLayout.LayoutParams(0, WRAP, 1f)
-        if (!last) lp.marginEnd = dp(6)
-        row.addView(tile, lp)
-        return value
+        if (!last) lp.marginEnd = dp(8)
+        row.addView(box, lp)
+        return Tile(caption, total, chrono, bg)
     }
 
     private fun flatButton(label: String, onClick: () -> Unit): Button {
